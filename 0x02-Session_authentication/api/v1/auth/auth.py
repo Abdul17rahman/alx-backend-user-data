@@ -1,64 +1,77 @@
 #!/usr/bin/env python3
-'''
-Module defining the Auth class
-'''
+"""
+Authentication module
+"""
 from flask import request
-import os
-from typing import List, TypeVar
+from typing import TypeVar, List
+import re
+from os import getenv
 
 
 class Auth:
-    '''
-    Class definition of the Auth
-    '''
-
-    def require_auth(
-            self,
-            path: str,
-            excluded_paths: List[str]
-            ) -> bool:
-        '''
-        Returns False - path and excluded_paths
-        will be used later, now, you don't need
-        to take care of them
-        '''
-        if path is not None and excluded_paths is not None:
-            for exclusion_path in map(str.strip, excluded_paths):
-                pattern = ''
-                if exclusion_path.endswith('*'):
-                    pattern = exclusion_path[:-1]
-                    if path.startswith(pattern):
+    """
+        Auth - Authentication funtionality
+        Methods:
+            require_auth: check if path requires auth
+            authorization_header: get auth header from path
+            current_user: get the current user
+    """
+    def require_auth(self, path: str, excluded_paths: List[str]) -> bool:
+        """ Require authentication method
+            Arguments:
+                path: endpoint path
+                excluded_paths: endpoint paths that doesn't require auth
+            Returns:
+                False if path requires auth or True otherwise
+        """
+        if not path:
+            return True
+        if not excluded_paths or excluded_paths == []:
+            return True
+        # Check if path ends with slash
+        if path[-1] == '/' and path in excluded_paths:
+            return False
+        elif path+'/' in excluded_paths:
+            return False
+        else:
+            pattern = r'\/api\/v1\/(\w+)'
+            star_urls = [url for url in excluded_paths if url[-1] == '*']
+            if star_urls != []:
+                for url in star_urls:
+                    url_end = re.match(pattern, url)
+                    path_end = re.match(pattern, path)
+                    if re.match(url_end.group(1), path_end.group(1)):
                         return False
-                elif exclusion_path.endswith('/'):
-                    pattern = exclusion_path[:-1]
-                    if path == pattern or path.startswith(pattern + '/'):
-                        return False
-                else:
-                    pattern = exclusion_path
-                    if path == pattern or path.startswith(pattern + '/'):
-                        return False
-        return True
+            return True
 
     def authorization_header(self, request=None) -> str:
-        '''
-        Returns None - request will be the Flask
-        request object
-        '''
-        return request.headers.get('Authorization') if request else None
+        """ Authorization header
+            Arguments:
+                request: flask request object
+            Returns:
+                Authorization header value or None
+        """
+        if not request:
+            return None
+        return request.headers.get('Authorization', None)
 
     def current_user(self, request=None) -> TypeVar('User'):
-        '''
-        Returns None - request will be the Flask request
-        object
-        '''
+        """ Current user
+            Arguments:
+                request: flask request object
+            Returns:
+                None
+        """
         return None
 
     def session_cookie(self, request=None) -> str:
-        """ Get the value of the session cookie from the request
+        """ Session cookie
+            Arguments:
+               request: flask request object
+            Returns:
+                None or Cookie value
         """
-        if request is None:
+        if not request:
             return None
-        # Get the session cookie name from environment variable
-        session_cookie_name = os.getenv("SESSION_NAME", "_my_session_id")
-        # Return the value of the cookie named session_cookie_name
-        return request.cookies.get(session_cookie_name, None)
+        cookie_name = getenv('SESSION_NAME')
+        return request.cookies.get(cookie_name)
