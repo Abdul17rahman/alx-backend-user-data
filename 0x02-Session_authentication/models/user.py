@@ -3,7 +3,6 @@
 """
 import hashlib
 from models.base import Base
-from flask import request
 
 
 class User(Base):
