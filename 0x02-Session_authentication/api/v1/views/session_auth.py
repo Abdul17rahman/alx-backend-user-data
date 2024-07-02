@@ -1,67 +1,49 @@
 #!/usr/bin/env python3
-"""Module to deal with the session authentication
+""" Module of Session Authentication views
 """
-
-from flask import request, jsonify, Blueprint, abort
+from api.v1.views import app_views
+from flask import abort, jsonify, request
 from models.user import User
-from api.v1.app import auth  # Import the auth object from api.v1.app
-import os
-
-# Create a Blueprint for session authentication routes
-session_auth_bp = Blueprint('session_auth', __name__,
-                            url_prefix='/auth_session')
+from os import getenv
 
 
-@session_auth_bp.route('/login', methods=['POST'])
-def login():
-    """Handle user login for session authentication.
-
-    Validates user credentials and creates a session ID upon successful login.
-
-    Returns:
-        JSON response with user data upon successful login.
-        JSON response with error message and appropriate status code for
-        invalid login attempts.
+@app_views.route('/auth_session/login', methods=['POST'], strict_slashes=False)
+def login() -> str:
+    """ POST /api/v1/auth_session/login
+    Return:
+        - response object
     """
-    # Retrieve email and password from request form data
     email = request.form.get('email')
     password = request.form.get('password')
-
-    # Check if email or password is missing
     if not email:
         return jsonify({"error": "email missing"}), 400
     if not password:
         return jsonify({"error": "password missing"}), 400
-
-    # Retrieve user based on email
-    user = User.search({'email': email})
-    if user is None:
+    users = User.search({'email': email})
+    if not users or users == []:
         return jsonify({"error": "no user found for this email"}), 404
-
-    # Check if password is correct
-    if not user.is_valid_password(password):
+    user = users[0]
+    valid_pwd = user.is_valid_password(password)
+    if not valid_pwd:
         return jsonify({"error": "wrong password"}), 401
-
-    # Create session ID for the user
+    from api.v1.app import auth
     session_id = auth.create_session(user.id)
-
-    # Return user data and set session ID as cookie
-    response_data = user.to_json()
-    response = jsonify(response_data)
-    session_cookie_name = os.getenv("SESSION_NAME", "_my_session_id")
-    response.set_cookie(session_cookie_name, session_id)
-
+    session_tip = getenv('SESSION_NAME')
+    # Jsonify returns a Response Object
+    response = jsonify(user.to_json())
+    response.set_cookie(session_tip, session_id)
     return response
 
-def logout():
-    """Handle user logout by destroying the session.
 
-    Returns:
-        Empty JSON response with status code 200 upon successful logout.
-        JSON response with error message and status code 404 if logout fails.
+@app_views.route('/auth_session/logout', methods=['DELETE'],
+                 strict_slashes=False)
+def logout() -> str:
+    """ DELETE /api/v1/auth_session/logout
+    Return:
+        - None
     """
-    # Destroy the session
-    if not auth.destroy_session(request):
+    from api.v1.app import auth
+    session = auth.destroy_session(request)
+    if not session:
         abort(404)
-
     return jsonify({}), 200
